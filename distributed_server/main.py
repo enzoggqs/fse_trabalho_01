@@ -1,0 +1,16 @@
+from threading import Thread
+import os
+import time
+import sys
+import distributed_socket
+
+
+
+if __name__ == '__main__':
+    try:
+        config_file = 'configuracao_sala_02.json'
+        tcp_ip_address = "164.41.98.26"
+        tcp_port = 10059
+        socket = distributed_socket.init_socket(config_file, tcp_ip_address, tcp_port)
+    except KeyboardInterrupt:
+        exit()
