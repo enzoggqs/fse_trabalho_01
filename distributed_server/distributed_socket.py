@@ -3,6 +3,8 @@ import json
 import RPi.GPIO as GPIO
 from threading import Thread, Event
 import pickle
+import board
+import adafruit_dht
 
 HEADERSIZE = 512
 
@@ -28,7 +30,9 @@ states = {
     'SFum': [11, 'Desligado', 'Sensor de Fumaça'],
     'SJan': [9, 'Desligado', 'Sensor de Janela'],
     'SPor': [10, 'Desligado', 'Sensor de Porta'],
-    'Pessoas': ['', '0', 'Número de Pessoas'],
+    'Pessoas': ['', 0, 'Número de Pessoas'],
+    'Temperatura': ['', 0, 'Temperatura'],
+    'Umidade': ['', 0, 'Umidade'],
 }
 
 def config_socket(config_file, tcp_ip_address, tcp_port):
@@ -46,12 +50,22 @@ def config_socket(config_file, tcp_ip_address, tcp_port):
             msg_rec = connection.recv(2048).decode('ascii')
             print(msg_rec)
             if(msg_rec[0:3] == "op1"):
-                aux = threat_states()
-                aux = pickle.dumps(aux)
+                msg = threat_states()
+                msg = pickle.dumps(msg)
 
-                aux = bytes(f'{len(aux):<{HEADERSIZE}}', 'utf-8') + aux
-                connection.send(aux)
-        
+                msg = bytes(f'{len(msg):<{HEADERSIZE}}', 'utf-8') + msg
+                connection.send(msg)
+            elif(msg_rec[0:3] == "op2"):
+                print('op2 entrou')
+                device = adafruit_dht.DHT22(board.D18, False)
+                msg = {"Temperatura": device.temperature, "Umidade": device.humidity}
+                msg = bytes(f'{len(msg):<{HEADERSIZE}}', 'utf-8') + msg
+                connection.send(msg)
+            elif(msg_rec[0:3] == "op3"):
+                turning_on_thread = Thread(target=turn_on_outputs, args=(msg_rec[3], msg_rec[4]))
+                turning_on_thread.start()
+
+
     except socket.error as e:
         print(e)
         connection.close()
@@ -111,7 +125,28 @@ def update_states():
     if(GPIO.input(states['SPor'][0])):
         states['SPor'][1] = 'Ligado'
     else:
-        states['SPor'][1] = 'Desligado'        
+        states['SPor'][1] = 'Desligado'  
+
+def turn_on_outputs(option, choice):
+    aux = True
+    print(choice)
+    if(choice == '0'):
+        aux = False
+    setup_pins()
+    if(option == "1"):
+        GPIO.output(states['L_01'][0], aux)
+    if(option == "2"):
+        GPIO.output(states['L_02'][0], aux)
+    if(option == "3"):
+        GPIO.output(states['AC'][0], aux)
+    if(option == "4"):
+        GPIO.output(states['PR'][0], aux)
+    if(option == "5"):
+        GPIO.output(states['L_01'][0], aux)
+        GPIO.output(states['L_02'][0], aux)
+        GPIO.output(states['AC'][0], aux)
+        GPIO.output(states['PR'][0], aux)
+        GPIO.output(states['AL_BZ'][0], aux)
 
 def threat_states():
     update_states()
