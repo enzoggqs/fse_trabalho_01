@@ -2,14 +2,22 @@ from threading import Thread
 import os
 import time
 import sys
+from datetime import datetime
 import central_socket
 import json
 import pickle
+import csv
 
 HEADERSIZE = 512
 
 connections = {}
-addresses = []
+connected_rooms = []
+
+def generate_log(msg):
+    with open('../log.sv', 'a') as csvfile:
+        writer = csv.writer(csvfile,delimiter = ',')
+        print(datetime.now().strftime('%d/%m/%Y %H:%M')+' - ',msg,file = csvfile)
+        
 
 def connection_thread(con):
     while True:
@@ -18,29 +26,17 @@ def connection_thread(con):
         while True:
             msg = con.recv(4096)
             if new_msg:
-                # print(f"new message length: {msg[:HEADERSIZE]}")
                 msglen = int(msg[:HEADERSIZE])
                 new_msg = False
             full_msg += msg
 
             if len(full_msg)-HEADERSIZE == msglen:
-                # print("full msg recvd")
-                # print(full_msg[HEADERSIZE:])
 
                 d = pickle.loads(full_msg[HEADERSIZE:])
                 print(d)
 
                 new_msg = True
                 full_msg = b''
-        # print(full_msg)
-        # try:
-        #     msg = con.recv(1024).decode('ascii')
-        #     if not msg: break
-        #     full_msg += msg
-        #     d = json.loads(json_acceptable_string)
-        #     print(d)
-        # except ValueError:
-        #     print("Decoding JSON has failed")
 
 def start_menu():
     try:
@@ -51,15 +47,20 @@ def start_menu():
         print('1 - Monitorar estados de entrada e saída do sistema')
         print('2 - Monitorar temperatura e humidade do sistema')
         print('3 - Ligar/Desligar dispositivos')
+        print('4 - Listar conexões')
+
         aux = input('\nDigite a opção escolhida\n')
         if(aux == '0'):
-            quit()
+            print('entrou aq')
+            sys.exit()
         if(aux == '1'):
             st = ("op1")
             st = st.encode()
-            connections[addresses[0]].send(st)
+            connections[connected_rooms[0]].send(st)
 
             time.sleep(3)
+
+            generate_log(f'Gera novos dados para monitoramento')
         
             start_menu()
         if(aux == '2'):
@@ -68,7 +69,9 @@ def start_menu():
                 # time.sleep(2)
                 st = ("op2")
                 st = st.encode()
-                connections[addresses[0]].send(st)
+                connections[connected_rooms[0]].send(st)
+
+                generate_log(f'Busca valores de temperatura e umidade da sala')
 
                 time.sleep(10)
 
@@ -83,20 +86,47 @@ def start_menu():
             print('2 - Lâmpada 02')
             print('3 - Ar Condicionado')
             print('4 - Projetor')
-            print('5 - Todos os de saída')
+            print('5 - Alarme')
+            print('6 - Todos os de saída')
             disp = input("\nDigite a opção escolhida\n")
-            while(disp != '1' and disp != '2' and disp != '3' and disp != '4'and disp != '5'):
+            while(disp != '1' and disp != '2' and disp != '3' and disp != '4'and disp != '5' and disp != '6'):
                 disp = input("\nDigite a opção escolhida\n")
             st += str(disp)
             choice = input("Você deseja LIGAR(1) ou DESLIGAR(0)")
             while(choice != '1' and choice != '0'):
                 choice = input("Você deseja LIGAR(1) ou DESLIGAR(0)")
+
+            if(choice == 1 and disp != 6):
+                generate_log(f'Liga dispositivo')
+            if(choice == 2 and disp != 6):
+                generate_log(f'Desliga dispositivo')
+            if(choice == 1 and disp == 6):
+                generate_log(f'Liga todos os dispositivo')
+            if(choice == 2 and disp != 6):
+                generate_log(f'Desliga todos os dispositivo')
+
             st += str(choice)
             st = st.encode()
-            connections[addresses[0]].send(st)
+            connections[connected_rooms[0]].send(st)
 
         
             start_menu()
+        if(aux == '4'):
+            print(connections)
+            print(connected_rooms)
+            rooms = []
+            for room in connected_rooms:
+                if(room[-2:] == '15'):
+                    rooms.append('Sala 4')
+                if(room[-2:] == '28'):
+                    rooms.append('Sala 3')
+                if(room[-2:] == '26'):
+                    rooms.append('Sala 2')
+                if(room[-2:] == '29'):
+                    rooms.append('Sala 1')
+            print(rooms)
+
+            generate_log(f'Lista Salas')
 
     except KeyboardInterrupt:
         quit()       
@@ -106,11 +136,11 @@ def connect():
         while True:
             con, client = socket.accept()
             print("Accepted a connection request from %s:%s"%(client[0], client[1]));
-            addresses.append(client[0])
+            connected_rooms.append(client[0])
             connections[client[0]] = con
             read_message_thread = Thread(target=connection_thread, args=(con,))
             read_message_thread.start()
-            connections[addresses[0]] = con 
+            connections[connected_rooms[0]] = con 
     except RuntimeError as error:
         return error.args[0]
 
@@ -123,5 +153,9 @@ if __name__ == '__main__':
         menu.start()
         allow_connections = Thread(target = connect)
         allow_connections.start()
+        # while(True):
+        #     if(menu.is_alive() == False):
+        #         KeyboardInterrupt
+        #     time.sleep(1)
     except KeyboardInterrupt:
         exit()
