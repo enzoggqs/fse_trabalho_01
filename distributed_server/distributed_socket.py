@@ -5,20 +5,9 @@ from threading import Thread, Event
 import pickle
 import board
 import adafruit_dht
+import time
 
 HEADERSIZE = 512
-
-# L_01 = 26
-# L_02 = 19
-# AC = 13
-# PR = 6
-# AL_BZ = 5
-# SPres = 0
-# SFum = 11
-# SJan = 9
-# SPor = 10
-# SC_IN = 22
-# SC_OUT = 27
 
 states = {
     'L_01': [26, 'Desligado', 'Lâmpada 1'],
@@ -41,30 +30,43 @@ def config_socket(config_file, tcp_ip_address, tcp_port):
     connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     dest = (tcp_ip_address, tcp_port)
     connection.connect(dest)
+
     try:
         st={"type": "new_connection", "config_file": config_file}
         byt = pickle.dumps(st)
         byt = bytes(f'{len(byt):<{HEADERSIZE}}', 'utf-8') + byt
         connection.send(byt)
+
         while True:
+
             msg_rec = connection.recv(2048).decode('ascii')
-            print(msg_rec)
+
             if(msg_rec[0:3] == "op1"):
                 msg = threat_states()
                 msg = pickle.dumps(msg)
 
                 msg = bytes(f'{len(msg):<{HEADERSIZE}}', 'utf-8') + msg
                 connection.send(msg)
+
             elif(msg_rec[0:3] == "op2"):
                 print('op2 entrou')
-                device = adafruit_dht.DHT22(board.D18, False)
-                msg = {"Temperatura": device.temperature, "Umidade": device.humidity}
+                dhtDevice = adafruit_dht.DHT22(board.D18, use_pulseio=False)
+                msg = {"Temperatura": dhtDevice.temperature, "Umidade": dhtDevice.humidity}
                 msg = bytes(f'{len(msg):<{HEADERSIZE}}', 'utf-8') + msg
                 connection.send(msg)
+
             elif(msg_rec[0:3] == "op3"):
                 turning_on_thread = Thread(target=turn_on_outputs, args=(msg_rec[3], msg_rec[4]))
                 turning_on_thread.start()
 
+                if(msg_rec[4] == 0):
+                    msg = "Dispositivo desligado com sucesso!"
+
+                else:
+                    msg = {"msg": "Dispositivo ligado com sucesso!"}
+                    msg = pickle.dumps(msg)
+                    msg = bytes(f'{len(msg):<{HEADERSIZE}}', 'utf-8') + msg
+                    connection.send(msg)
 
     except socket.error as e:
         print(e)
@@ -90,49 +92,48 @@ def setup_pins():
 def update_states():
     setup_pins()
 
-    if(GPIO.input(states['L_01'][0])):
-        states['L_01'][1] = 'Ligado'
-    else:
-        states['L_01'][1] = 'Desligado'
-    if(GPIO.input(states['L_02'][0])):
-        states['L_02'][1] = 'Ligado'
-    else:
-        states['L_02'][1] = 'Desligado'
-    if(GPIO.input(states['AC'][0])):
-        states['AC'][1] = 'Ligado'
-    else:
-        states['AC'][1] = 'Desligado'
-    if(GPIO.input(states['PR'][0])):
-        states['PR'][1] = 'Ligado'
-    else:
-        states['PR'][1] = 'Desligado'
-    if(GPIO.input(states['AL_BZ'][0])):
-        states['AL_BZ'][1] = 'Ligado'
-    else:
-        states['AL_BZ'][1] = 'Desligado'
-    if(GPIO.input(states['SPres'][0])):
-        states['SPres'][1] = 'Ligado'
-    else:
-        states['SPres'][1] = 'Desligado'
-    if(GPIO.input(states['SFum'][0])):
-        states['SFum'][1] = 'Ligado'
-    else:
-        states['SFum'][1] = 'Desligado'
-    if(GPIO.input(states['SJan'][0])):
-        states['SJan'][1] = 'Ligado'
-    else:
-        states['SJan'][1] = 'Desligado'
-    if(GPIO.input(states['SPor'][0])):
-        states['SPor'][1] = 'Ligado'
-    else:
-        states['SPor'][1] = 'Desligado'  
+    while(True):
+        if(GPIO.input(states['L_01'][0])):
+            states['L_01'][1] = 'Ligado'
+        else:
+            states['L_01'][1] = 'Desligado'
+        if(GPIO.input(states['L_02'][0])):
+            states['L_02'][1] = 'Ligado'
+        else:
+            states['L_02'][1] = 'Desligado'
+        if(GPIO.input(states['AC'][0])):
+            states['AC'][1] = 'Ligado'
+        else:
+            states['AC'][1] = 'Desligado'
+        if(GPIO.input(states['PR'][0])):
+            states['PR'][1] = 'Ligado'
+        else:
+            states['PR'][1] = 'Desligado'
+        if(GPIO.input(states['AL_BZ'][0])):
+            states['AL_BZ'][1] = 'Ligado'
+        else:
+            states['AL_BZ'][1] = 'Desligado'
+        if(GPIO.input(states['SPres'][0])):
+            states['SPres'][1] = 'Ligado'
+        else:
+            states['SPres'][1] = 'Desligado'
+        if(GPIO.input(states['SFum'][0])):
+            states['SFum'][1] = 'Ligado'
+        else:
+            states['SFum'][1] = 'Desligado'
+        if(GPIO.input(states['SJan'][0])):
+            states['SJan'][1] = 'Ligado'
+        else:
+            states['SJan'][1] = 'Desligado'
+        if(GPIO.input(states['SPor'][0])):
+            states['SPor'][1] = 'Ligado'
+        else:
+            states['SPor'][1] = 'Desligado'  
 
 def turn_on_outputs(option, choice):
     aux = True
-    print(choice)
     if(choice == '0'):
         aux = False
-    setup_pins()
     if(option == "1"):
         GPIO.output(states['L_01'][0], aux)
     if(option == "2"):
@@ -149,13 +150,36 @@ def turn_on_outputs(option, choice):
         GPIO.output(states['AL_BZ'][0], aux)
 
 def threat_states():
-    update_states()
     new_dict = {}
     for el in states.values():
         new_dict[el[2]] = el[1]
     
     return new_dict
 
-def init_socket(config_file, tcp_ip_address, tcp_port):
+def count_people():
+    people_amount = 0
+    setup_pins()
+    while(True):
+        states['Pessoas'][1] = people_amount
+        if GPIO.input(22):
+            print('Alguem entrou no predio')
+            people_amount = people_amount + 1
+        if GPIO.input(27):
+            print('Alguem saiu no predio')
+            people_amount = people_amount - 1
+            if(people_amount < 0):
+                people_amount = 0
+        time.sleep(0.05)
+
+def handle_states():
+    people_thread = Thread(target=count_people, )
+    people_thread.start()
+    update_states_thread = Thread(target=update_states, )
+    update_states_thread.start()
+
+
+def init(config_file, tcp_ip_address, tcp_port):
     socket_thread = Thread(target=config_socket, args=(config_file,tcp_ip_address, tcp_port))
     socket_thread.start()
+    states_thread = Thread(target=handle_states, )
+    states_thread.start()
