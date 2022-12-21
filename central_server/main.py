@@ -48,19 +48,56 @@ def start_menu():
         print('-----------------\n')
         print('Escolha uma das seguintes opções:\n')
         print('0 - Sair do programa')
-        print('1 - Monitorar estados do sistema')
+        print('1 - Monitorar estados de entrada e saída do sistema')
+        print('2 - Monitorar temperatura e humidade do sistema')
+        print('3 - Ligar/Desligar dispositivos')
         aux = input('\nDigite a opção escolhida\n')
         if(aux == '0'):
             quit()
         if(aux == '1'):
             st = ("op1")
             st = st.encode()
-            print(addresses)
             connections[addresses[0]].send(st)
 
-            time.sleep(0.5)
+            time.sleep(3)
         
             start_menu()
+        if(aux == '2'):
+            try:
+            # stop = input('A temperatura e a umidade serão mostradas e atualizadas a cada 2s. Pressione qualquer tecla para voltar ao menu')
+                # time.sleep(2)
+                st = ("op2")
+                st = st.encode()
+                connections[addresses[0]].send(st)
+
+                time.sleep(10)
+
+                start_menu()
+
+            except RuntimeError as error:
+                return error.args[0]
+        if(aux == '3'):
+            st = "op3"
+            print("Qual dispositivo deseja ligar/desligar?")
+            print('1 - Lâmpada 01')
+            print('2 - Lâmpada 02')
+            print('3 - Ar Condicionado')
+            print('4 - Projetor')
+            print('5 - Todos os de saída')
+            disp = input("\nDigite a opção escolhida\n")
+            while(disp != '1' and disp != '2' and disp != '3' and disp != '4'and disp != '5'):
+                disp = input("\nDigite a opção escolhida\n")
+            st += str(disp)
+            choice = input("Você deseja LIGAR(1) ou DESLIGAR(0)")
+            while(choice != '1' and choice != '0'):
+                choice = input("Você deseja LIGAR(1) ou DESLIGAR(0)")
+            st += str(choice)
+            st = st.encode()
+            connections[addresses[0]].send(st)
+
+        
+            start_menu()
+
     except KeyboardInterrupt:
         quit()       
            
@@ -71,7 +108,6 @@ def connect():
             print("Accepted a connection request from %s:%s"%(client[0], client[1]));
             addresses.append(client[0])
             connections[client[0]] = con
-            con.send("Hello Client".encode())
             read_message_thread = Thread(target=connection_thread, args=(con,))
             read_message_thread.start()
             connections[addresses[0]] = con 
@@ -81,7 +117,7 @@ def connect():
 if __name__ == '__main__':
     try:
         tcp_ip_address = "164.41.98.26"
-        tcp_port = 10053
+        tcp_port = 10055
         socket = central_socket.init_socket(tcp_ip_address, tcp_port)
         menu = Thread(target=start_menu)
         menu.start()
